@@ -1,0 +1,384 @@
+{
+  "name": "servicenow-csdm",
+  "version": "1.0.0",
+  "standard": "ServiceNow Common Service Data Model (CSDM) 4.0 / 5",
+  "description": "Ontology template for ServiceNow data. Every record pulled from ServiceNow is mapped onto these classes (by table / sys_class_name), fields onto properties, reference fields and cmdb_rel_ci rows onto relationships. Anything the template doesn't cover is queued as 'not mapped' with an LLM suggestion and must be mapped by a person.",
+  "references": [
+    "https://www.servicenow.com/docs/r/australia/servicenow-platform/common-service-data-model-csdm/csdm-content-frame-reference.html",
+    "ServiceNow 101 primer series: Common Services Data Model (CSDM) Primer (ebk-csdm-101-primer.pdf)"
+  ],
+  "domains": [
+    {"id": "foundation", "label": "Foundation", "description": "Base data used by every other domain: companies, locations, departments, business units, users, groups, product models, contracts, business processes."},
+    {"id": "design", "label": "Design", "description": "Design and optimisation of applications: business capabilities, business applications, information objects (Application Portfolio Management)."},
+    {"id": "build", "label": "Build", "description": "Development of the applications that provide services: SDLC components."},
+    {"id": "manage_technical_services", "label": "Manage technical services", "description": "Core of the CMDB: application services, technical services and offerings, dynamic CI groups, infrastructure CIs and their relationships."},
+    {"id": "sell_consume", "label": "Sell / consume", "description": "Consumption of services by the business and customers: business services, business service offerings, service portfolios, request catalog items."},
+    {"id": "service_operations", "label": "Service operations", "description": "ITSM records (incidents, problems, changes) that reference CSDM services, offerings and CIs."}
+  ],
+  "ignore_fields": [
+    "sys_id", "sys_class_name", "sys_created_by", "sys_created_on", "sys_updated_by", "sys_mod_count", "sys_tags",
+    "sys_domain", "sys_domain_path", "sys_class_path", "sys_package", "sys_scope", "sys_policy", "sys_update_name",
+    "sys_replace_on_upgrade", "sys_customer_update", "sys_name", "sys_meta"
+  ],
+  "mixins": {
+    "ci": {
+      "description": "Fields every configuration item (cmdb_ci) has.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "short_description", "name": "short_description", "type": "string"},
+        {"field": "operational_status", "name": "operational_status", "type": "string"},
+        {"field": "install_status", "name": "install_status", "type": "string"},
+        {"field": "life_cycle_stage", "name": "life_cycle_stage", "type": "string"},
+        {"field": "life_cycle_stage_status", "name": "life_cycle_stage_status", "type": "string"},
+        {"field": "sys_updated_on", "name": "updated_on", "type": "date"}
+      ],
+      "references": [
+        {"field": "owned_by", "to": ["User"], "type": "OWNED_BY"},
+        {"field": "managed_by", "to": ["User"], "type": "MANAGED_BY"},
+        {"field": "support_group", "to": ["Group"], "type": "SUPPORTED_BY"},
+        {"field": "assignment_group", "to": ["Group"], "type": "ASSIGNED_TO_GROUP"},
+        {"field": "managed_by_group", "to": ["Group"], "type": "MANAGED_BY_GROUP"},
+        {"field": "location", "to": ["Location"], "type": "LOCATED_AT"},
+        {"field": "company", "to": ["Company"], "type": "BELONGS_TO"},
+        {"field": "department", "to": ["Department"], "type": "BELONGS_TO_DEPARTMENT"},
+        {"field": "model_id", "to": ["ProductModel"], "type": "HAS_MODEL"}
+      ]
+    },
+    "ticket": {
+      "description": "Fields ITSM task records share.",
+      "properties": [
+        {"field": "number", "name": "number", "type": "string"},
+        {"field": "short_description", "name": "short_description", "type": "string"},
+        {"field": "state", "name": "state", "type": "string"},
+        {"field": "priority", "name": "priority", "type": "string"},
+        {"field": "opened_at", "name": "opened_at", "type": "date"},
+        {"field": "sys_updated_on", "name": "updated_on", "type": "date"}
+      ],
+      "references": [
+        {"field": "assigned_to", "to": ["User"], "type": "ASSIGNED_TO"},
+        {"field": "assignment_group", "to": ["Group"], "type": "ASSIGNED_TO_GROUP"},
+        {"field": "cmdb_ci", "to": ["@ci"], "type": "AFFECTS_CI"},
+        {"field": "business_service", "to": ["BusinessService", "ApplicationService", "TechnicalService"], "type": "AFFECTS_SERVICE"},
+        {"field": "service_offering", "to": ["BusinessServiceOffering", "TechnicalServiceOffering"], "type": "AFFECTS_OFFERING"}
+      ]
+    }
+  },
+  "classes": [
+    {
+      "label": "Company", "domain": "foundation", "tables": ["core_company"],
+      "description": "A company: your own organisation, a vendor, a manufacturer or a customer.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "city", "name": "city", "type": "string"},
+        {"field": "country", "name": "country", "type": "string"},
+        {"field": "vendor", "name": "vendor", "type": "boolean"},
+        {"field": "manufacturer", "name": "manufacturer", "type": "boolean"},
+        {"field": "customer", "name": "customer", "type": "boolean"}
+      ],
+      "references": [{"field": "parent", "to": ["Company"], "type": "PART_OF"}]
+    },
+    {
+      "label": "Location", "domain": "foundation", "tables": ["cmn_location"],
+      "description": "A site, building or other place.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "street", "name": "street", "type": "string"},
+        {"field": "city", "name": "city", "type": "string"},
+        {"field": "state", "name": "state", "type": "string"},
+        {"field": "country", "name": "country", "type": "string"}
+      ],
+      "references": [
+        {"field": "parent", "to": ["Location"], "type": "PART_OF"},
+        {"field": "company", "to": ["Company"], "type": "BELONGS_TO"}
+      ]
+    },
+    {
+      "label": "BusinessUnit", "domain": "foundation", "tables": ["business_unit"],
+      "description": "A business unit of the company.",
+      "properties": [{"field": "name", "name": "name", "type": "string"}],
+      "references": [
+        {"field": "company", "to": ["Company"], "type": "BELONGS_TO"},
+        {"field": "bu_head", "to": ["User"], "type": "HEADED_BY"},
+        {"field": "parent", "to": ["BusinessUnit"], "type": "PART_OF"}
+      ]
+    },
+    {
+      "label": "Department", "domain": "foundation", "tables": ["cmn_department"],
+      "description": "A department.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "id", "name": "department_id", "type": "string"},
+        {"field": "description", "name": "description", "type": "string"}
+      ],
+      "references": [
+        {"field": "company", "to": ["Company"], "type": "BELONGS_TO"},
+        {"field": "business_unit", "to": ["BusinessUnit"], "type": "PART_OF"},
+        {"field": "dept_head", "to": ["User"], "type": "HEADED_BY"},
+        {"field": "parent", "to": ["Department"], "type": "PART_OF"}
+      ]
+    },
+    {
+      "label": "User", "domain": "foundation", "tables": ["sys_user"],
+      "description": "A person with a ServiceNow account.",
+      "properties": [
+        {"field": "user_name", "name": "user_name", "type": "string"},
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "email", "name": "email", "type": "string"},
+        {"field": "title", "name": "title", "type": "string"},
+        {"field": "active", "name": "active", "type": "boolean"}
+      ],
+      "references": [
+        {"field": "department", "to": ["Department"], "type": "WORKS_IN"},
+        {"field": "location", "to": ["Location"], "type": "LOCATED_AT"},
+        {"field": "company", "to": ["Company"], "type": "WORKS_FOR"},
+        {"field": "manager", "to": ["User"], "type": "REPORTS_TO"}
+      ]
+    },
+    {
+      "label": "Group", "domain": "foundation", "tables": ["sys_user_group"],
+      "description": "A group of users, e.g. a support or assignment group.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "description", "name": "description", "type": "string"},
+        {"field": "email", "name": "email", "type": "string"}
+      ],
+      "references": [
+        {"field": "manager", "to": ["User"], "type": "MANAGED_BY"},
+        {"field": "parent", "to": ["Group"], "type": "PART_OF"}
+      ]
+    },
+    {
+      "label": "ProductModel", "domain": "foundation",
+      "tables": ["cmdb_model", "cmdb_hardware_product_model", "cmdb_software_product_model", "cmdb_application_product_model"],
+      "description": "A specific version of a product (hardware, software, application). A CI is an instance of a product model.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "display_name", "name": "display_name", "type": "string"},
+        {"field": "model_number", "name": "model_number", "type": "string"}
+      ],
+      "references": [{"field": "manufacturer", "to": ["Company"], "type": "MANUFACTURED_BY"}]
+    },
+    {
+      "label": "Contract", "domain": "foundation", "tables": ["ast_contract"],
+      "description": "A contract, e.g. a maintenance or licence agreement with a vendor.",
+      "properties": [
+        {"field": "number", "name": "number", "type": "string"},
+        {"field": "short_description", "name": "short_description", "type": "string"},
+        {"field": "state", "name": "state", "type": "string"},
+        {"field": "starts", "name": "starts", "type": "date"},
+        {"field": "ends", "name": "ends", "type": "date"}
+      ],
+      "references": [
+        {"field": "vendor", "to": ["Company"], "type": "WITH_VENDOR"},
+        {"field": "contract_administrator", "to": ["User"], "type": "ADMINISTERED_BY"}
+      ]
+    },
+    {
+      "label": "BusinessProcess", "domain": "foundation", "tables": ["cmdb_ci_business_process"], "include": ["ci"],
+      "description": "A business process the organisation runs."
+    },
+    {
+      "label": "BusinessCapability", "domain": "design", "tables": ["cmdb_ci_business_capability"], "include": ["ci"],
+      "description": "A core business capability such as Finance or Human Capital. Usually depends on several business applications."
+    },
+    {
+      "label": "BusinessApplication", "domain": "design", "tables": ["cmdb_ci_business_app"], "include": ["ci"],
+      "description": "An application the business uses, across all its environments. Each application service is an instance of a business application.",
+      "properties": [
+        {"field": "number", "name": "number", "type": "string"},
+        {"field": "architecture_type", "name": "architecture_type", "type": "string"},
+        {"field": "install_type", "name": "install_type", "type": "string"},
+        {"field": "platform", "name": "platform", "type": "string"},
+        {"field": "application_category", "name": "application_category", "type": "string"},
+        {"field": "business_criticality", "name": "business_criticality", "type": "string"}
+      ],
+      "references": [
+        {"field": "it_application_owner", "to": ["User"], "type": "IT_OWNED_BY"},
+        {"field": "vendor", "to": ["Company"], "type": "SUPPLIED_BY"}
+      ]
+    },
+    {
+      "label": "InformationObject", "domain": "design", "tables": ["cmdb_ci_information_object"], "include": ["ci"],
+      "description": "A type of information (data) a business application holds."
+    },
+    {
+      "label": "SDLCComponent", "domain": "build", "tables": ["cmdb_ci_sdlc_component"], "include": ["ci"],
+      "description": "An item that moves through the development pipeline, e.g. a software component or database configuration."
+    },
+    {
+      "label": "ApplicationService", "domain": "manage_technical_services",
+      "tables": ["cmdb_ci_service_auto", "cmdb_ci_service_discovered", "cmdb_ci_service_calculated", "cmdb_ci_service_by_tags"],
+      "include": ["ci"],
+      "description": "One deployed instance of an application stack (e.g. email in North America), mapped down to its infrastructure CIs.",
+      "properties": [
+        {"field": "environment", "name": "environment", "type": "string"},
+        {"field": "version", "name": "version", "type": "string"},
+        {"field": "busines_criticality", "name": "business_criticality", "type": "string"},
+        {"field": "service_classification", "name": "service_classification", "type": "string"}
+      ]
+    },
+    {
+      "label": "DynamicCIGroup", "domain": "manage_technical_services", "tables": ["cmdb_ci_query_based_service"],
+      "include": ["ci"],
+      "description": "A group of CIs built manually or by a query, used for support and ownership (e.g. Linux servers in England)."
+    },
+    {
+      "label": "TechnicalService", "domain": "manage_technical_services", "tables": ["cmdb_ci_service_technical"],
+      "include": ["ci"],
+      "description": "A service IT provides to technical consumers, e.g. cloud hosting or on-site networking.",
+      "properties": [
+        {"field": "service_classification", "name": "service_classification", "type": "string"},
+        {"field": "busines_criticality", "name": "business_criticality", "type": "string"}
+      ]
+    },
+    {
+      "label": "TechnicalServiceOffering", "domain": "manage_technical_services", "tables": ["service_offering"],
+      "where": {"service_classification": ["Technology Service", "Technical Service"]},
+      "include": ["ci"],
+      "description": "A level of a technical service (e.g. 24x7 support vs business hours).",
+      "properties": [
+        {"field": "service_classification", "name": "service_classification", "type": "string"},
+        {"field": "busines_criticality", "name": "business_criticality", "type": "string"}
+      ],
+      "references": [{"field": "parent", "to": ["TechnicalService"], "type": "OFFERING_OF"}]
+    },
+    {
+      "label": "Server", "domain": "manage_technical_services",
+      "tables": ["cmdb_ci_server", "cmdb_ci_linux_server", "cmdb_ci_win_server", "cmdb_ci_unix_server", "cmdb_ci_esx_server", "cmdb_ci_aix_server", "cmdb_ci_solaris_server", "cmdb_ci_hpux_server"],
+      "include": ["ci"],
+      "description": "A physical or virtual server (infrastructure CI).",
+      "properties": [
+        {"field": "host_name", "name": "host_name", "type": "string"},
+        {"field": "fqdn", "name": "fqdn", "type": "string"},
+        {"field": "ip_address", "name": "ip_address", "type": "string"},
+        {"field": "os", "name": "os", "type": "string"},
+        {"field": "os_version", "name": "os_version", "type": "string"},
+        {"field": "cpu_count", "name": "cpu_count", "type": "integer"},
+        {"field": "ram", "name": "ram_mb", "type": "integer"},
+        {"field": "serial_number", "name": "serial_number", "type": "string"},
+        {"field": "virtual", "name": "virtual", "type": "boolean"}
+      ]
+    },
+    {
+      "label": "DatabaseInstance", "domain": "manage_technical_services",
+      "tables": ["cmdb_ci_db_instance", "cmdb_ci_db_mssql_instance", "cmdb_ci_db_ora_instance", "cmdb_ci_db_mysql_instance", "cmdb_ci_db_postgresql_instance"],
+      "include": ["ci"],
+      "description": "A database instance (infrastructure CI).",
+      "properties": [
+        {"field": "version", "name": "version", "type": "string"},
+        {"field": "tcp_port", "name": "tcp_port", "type": "string"}
+      ]
+    },
+    {
+      "label": "Application", "domain": "manage_technical_services",
+      "tables": ["cmdb_ci_appl", "cmdb_ci_app_server", "cmdb_ci_app_server_tomcat", "cmdb_ci_app_server_websphere", "cmdb_ci_web_server", "cmdb_ci_apache_web_server"],
+      "include": ["ci"],
+      "description": "Running software such as middleware, an application server or a web server (infrastructure CI).",
+      "properties": [
+        {"field": "version", "name": "version", "type": "string"},
+        {"field": "tcp_port", "name": "tcp_port", "type": "string"}
+      ]
+    },
+    {
+      "label": "NetworkGear", "domain": "manage_technical_services",
+      "tables": ["cmdb_ci_netgear", "cmdb_ci_ip_router", "cmdb_ci_ip_switch", "cmdb_ci_ip_firewall"],
+      "include": ["ci"],
+      "description": "A router, switch, firewall or other network device (infrastructure CI).",
+      "properties": [
+        {"field": "ip_address", "name": "ip_address", "type": "string"},
+        {"field": "serial_number", "name": "serial_number", "type": "string"}
+      ]
+    },
+    {
+      "label": "BusinessService", "domain": "sell_consume",
+      "tables": ["cmdb_ci_service_business", "cmdb_ci_service"], "fetch": ["cmdb_ci_service_business"],
+      "where": {"cmdb_ci_service": {"service_classification": ["Business Service"]}},
+      "include": ["ci"],
+      "description": "The service business users and customers see (e.g. Email), whatever application services provide it.",
+      "properties": [
+        {"field": "service_classification", "name": "service_classification", "type": "string"},
+        {"field": "busines_criticality", "name": "business_criticality", "type": "string"}
+      ]
+    },
+    {
+      "label": "BusinessServiceOffering", "domain": "sell_consume", "tables": ["service_offering"],
+      "include": ["ci"],
+      "description": "A level of a business service, e.g. the same service at different price points or availability SLAs.",
+      "properties": [
+        {"field": "service_classification", "name": "service_classification", "type": "string"},
+        {"field": "busines_criticality", "name": "business_criticality", "type": "string"}
+      ],
+      "references": [{"field": "parent", "to": ["BusinessService"], "type": "OFFERING_OF"}]
+    },
+    {
+      "label": "ServicePortfolio", "domain": "sell_consume", "tables": ["spm_service_portfolio"],
+      "description": "A portfolio grouping the services the organisation offers.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "description", "name": "description", "type": "string"}
+      ]
+    },
+    {
+      "label": "RequestCatalogItem", "domain": "sell_consume", "tables": ["sc_cat_item"],
+      "description": "Something a business user can request from the service catalog.",
+      "properties": [
+        {"field": "name", "name": "name", "type": "string"},
+        {"field": "short_description", "name": "short_description", "type": "string"},
+        {"field": "active", "name": "active", "type": "boolean"}
+      ]
+    },
+    {
+      "label": "Incident", "domain": "service_operations", "tables": ["incident"], "include": ["ticket"],
+      "description": "An unplanned interruption or reduction in quality of a service.",
+      "properties": [
+        {"field": "category", "name": "category", "type": "string"},
+        {"field": "resolved_at", "name": "resolved_at", "type": "date"}
+      ],
+      "references": [
+        {"field": "caller_id", "to": ["User"], "type": "RAISED_BY"},
+        {"field": "problem_id", "to": ["Problem"], "type": "LINKED_TO_PROBLEM"}
+      ]
+    },
+    {
+      "label": "Problem", "domain": "service_operations", "tables": ["problem"], "include": ["ticket"],
+      "description": "The cause of one or more incidents."
+    },
+    {
+      "label": "ChangeRequest", "domain": "service_operations", "tables": ["change_request"], "include": ["ticket"],
+      "description": "A planned change to a service or CI.",
+      "properties": [
+        {"field": "type", "name": "type", "type": "string"},
+        {"field": "risk", "name": "risk", "type": "string"},
+        {"field": "start_date", "name": "start_date", "type": "date"},
+        {"field": "end_date", "name": "end_date", "type": "date"}
+      ]
+    }
+  ],
+  "link_tables": [
+    {
+      "table": "sys_user_grmember", "sheet": "Group members",
+      "description": "Which users belong to which groups.",
+      "from": {"field": "user", "class": "User"}, "to": {"field": "group", "class": "Group"}, "type": "MEMBER_OF"
+    },
+    {
+      "table": "svc_ci_assoc", "sheet": "Service CIs",
+      "description": "The CIs that make up an application service (service mapping results).",
+      "from": {"field": "service_id", "class": "ApplicationService"}, "to": {"field": "ci_id", "class": "@ci"}, "type": "CONTAINS_CI"
+    }
+  ],
+  "ci_relationships": {
+    "table": "cmdb_rel_ci",
+    "description": "CI-to-CI relationships. Each rule maps one ServiceNow relationship type between two classes; parent -> child unless reverse is true.",
+    "rules": [
+      {"servicenow_type": "Provided by::Provides", "parent": "BusinessCapability", "child": "BusinessApplication", "type": "PROVIDED_BY"},
+      {"servicenow_type": "Consumes::Consumed by", "parent": "BusinessApplication", "child": "ApplicationService", "type": "CONSUMES"},
+      {"servicenow_type": "Depends on::Used by", "parent": "BusinessServiceOffering", "child": "ApplicationService", "type": "DEPENDS_ON"},
+      {"servicenow_type": "Depends on::Used by", "parent": "ApplicationService", "child": ["ApplicationService", "TechnicalServiceOffering", "Server", "DatabaseInstance", "Application", "NetworkGear"], "type": "DEPENDS_ON"},
+      {"servicenow_type": "Contains::Contained by", "parent": "TechnicalServiceOffering", "child": "DynamicCIGroup", "type": "CONTAINS"},
+      {"servicenow_type": "Depends on::Used by", "parent": "Application", "child": ["Application", "DatabaseInstance", "Server"], "type": "DEPENDS_ON"},
+      {"servicenow_type": "Runs on::Runs", "parent": ["Application", "DatabaseInstance"], "child": "Server", "type": "RUNS_ON"},
+      {"servicenow_type": "Hosted on::Hosts", "parent": ["Server", "Application", "DatabaseInstance"], "child": "Server", "type": "HOSTED_ON"},
+      {"servicenow_type": "Connects to::Connected by", "parent": ["Server", "NetworkGear"], "child": ["Server", "NetworkGear"], "type": "CONNECTS_TO"}
+    ]
+  }
+}
