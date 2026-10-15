@@ -1,4 +1,4 @@
-# TCS Knowledge Fabric
+# Knowledge Fabric
 
 Knowledge Graph + RAG studio: upload spreadsheets to build a reviewed Neo4j knowledge graph, documents
 to build a RAG store (TurboQuant vector index), or both to create a hybrid knowledge base. Share them
